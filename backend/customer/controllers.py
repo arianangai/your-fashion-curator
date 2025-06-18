@@ -10,6 +10,9 @@ import json
 import time
 from datetime import datetime
 import base64
+ # import the inference-sdk
+from inference_sdk import InferenceHTTPClient
+import tempfile
 
 # Client secret functions
 def get_customer_ids(client: MongoClient,db:MongoDB):
@@ -93,20 +96,47 @@ async def create_garment(client:MongoClient,db:MongoDB, garment_data):
         contents = await garment_data.read()
         filename = garment_data.filename
 
+        # Save the uploaded image temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+            tmp_file.write(contents)
+            tmp_file_path = tmp_file.name
+
+        # Initialize the client
+        CLIENT = InferenceHTTPClient(
+            api_url=config("api_url"),
+            api_key=config("api_key")
+        )
+
+        # Infer using the saved file path
+        result = CLIENT.infer(tmp_file_path, model_id="garment-classifier/2")
+        if result.get("predictions"):
+            predicted_class = result["predictions"][0]["class"]
+            category = predicted_class
+            print("Predicted class:", predicted_class)
+        else:
+            category = "Unlabeled"
+        print("result", result)
         document = {
             "filename": filename,
             "content": contents,
             "content_type": garment_data.content_type,
+            "category": category,
+            "model_result": result,
             "uploaded_at": datetime.utcnow(),
         }
 
         result = garments_collection.insert_one(document)
         client.close()
         return True
+     
     except Exception as e:
         print(e)
         client.close()
         return False
+    finally:
+        import os
+        if os.path.exists(tmp_file_path):
+            os.remove(tmp_file_path)
     
 
 async def retrieve_customer(client,db:MongoDB,customer_id):
