@@ -20,3 +20,4 @@ In progress..
 
 <h2>3. Build your web-app</h2>
 We used Vercel to quickly generate the base code for this web app. The tech stack used will be Next.js for frontend, FastAPI for backend requests and MongoDB as the main database.
+We connect our local webapp to our YOLOv8 model hosted on Roboflow through online API.
