@@ -13,6 +13,13 @@ import base64
  # import the inference-sdk
 from inference_sdk import InferenceHTTPClient
 import tempfile
+from PIL import Image
+import requests
+from transformers import BlipProcessor, BlipForConditionalGeneration
+
+model_id = "Salesforce/blip-image-captioning-base"
+processor = BlipProcessor.from_pretrained(model_id)
+model = BlipForConditionalGeneration.from_pretrained(model_id)
 
 # Client secret functions
 def get_customer_ids(client: MongoClient,db:MongoDB):
@@ -87,6 +94,12 @@ async def get_garments(client:MongoClient,db:MongoDB):
         print(e)
         client.close()
         return False
+    
+def generate_caption(image):
+    inputs = processor(image, return_tensors="pt")
+    out = model.generate(**inputs)
+    caption = processor.decode(out[0], skip_special_tokens=True)
+    return caption
 
 # Create a user using the UserModel schema
 async def create_garment(client:MongoClient,db:MongoDB, garment_data):
@@ -116,12 +129,18 @@ async def create_garment(client:MongoClient,db:MongoDB, garment_data):
         else:
             category = "Unlabeled"
         print("result", result)
+
+        image = Image.open(tmp_file_path).convert('RGB')
+        blip_caption = generate_caption(image)
+        print("blip_caption", blip_caption)
+
         document = {
             "filename": filename,
             "content": contents,
             "content_type": garment_data.content_type,
             "category": category,
             "model_result": result,
+            "description": blip_caption,
             "uploaded_at": datetime.utcnow(),
         }
 
